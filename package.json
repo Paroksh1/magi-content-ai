@@ -9,9 +9,32 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.48",
+    "@ai-sdk/react": "^3.0.140",
+    "@tiptap/extension-bubble-menu": "^3.20.5",
+    "@tiptap/extension-color": "^3.20.5",
+    "@tiptap/extension-heading": "^3.20.5",
+    "@tiptap/extension-highlight": "^3.20.5",
+    "@tiptap/extension-image": "^3.20.5",
+    "@tiptap/extension-link": "^3.20.5",
+    "@tiptap/extension-placeholder": "^3.20.5",
+    "@tiptap/extension-text-align": "^3.20.5",
+    "@tiptap/extension-text-style": "^3.20.5",
+    "@tiptap/extension-underline": "^3.20.5",
+    "@tiptap/pm": "^3.20.5",
+    "@tiptap/react": "^3.20.5",
+    "@tiptap/starter-kit": "^3.20.5",
+    "@tiptap/suggestion": "^3.20.5",
+    "ai": "^6.0.138",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.6.0",
     "next": "16.2.1",
+    "pdfjs-dist": "^5.5.207",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "syllable": "^5.0.1",
+    "tippy.js": "^6.3.7",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

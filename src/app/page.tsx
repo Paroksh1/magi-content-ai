@@ -1,65 +1,239 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useCallback } from "react";
+import { History } from "lucide-react";
+import { PromptPanel } from "@/components/generator/PromptPanel";
+import { ContentEditor } from "@/components/editor/ContentEditor";
+import { StreamingPreview } from "@/components/editor/StreamingPreview";
+import { GenerationStatusBar } from "@/components/generator/GenerationStatusBar";
+import { ExportMenu } from "@/components/editor/ExportMenu";
+import { WordCount } from "@/components/editor/WordCount";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { ImagePicker } from "@/components/editor/ImagePicker";
+import { ContentScorePanel } from "@/components/editor/ContentScorePanel";
+import { VersionHistoryPanel } from "@/components/editor/VersionHistoryPanel";
+import { OutlineEditor } from "@/components/outline/OutlineEditor";
+import { useEditorSetup } from "@/lib/hooks/useEditorSetup";
+import { useContentGeneration } from "@/lib/hooks/useContentGeneration";
+import { useContinueWriting } from "@/lib/hooks/useContinueWriting";
+import { useVersionHistory } from "@/lib/hooks/useVersionHistory";
+import type { ContentType, PromptInput } from "@/lib/types";
+import type { ImageResult } from "@/lib/hooks/useImageSearch";
+
+export default function EditorPage() {
+  const [contentType, setContentType] = useState<ContentType>("blog");
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [lastKeywords, setLastKeywords] = useState("");
+
+  const editor = useEditorSetup();
+  const generation = useContentGeneration(editor);
+  const { isWriting, continueWriting, stopWriting } = useContinueWriting(editor);
+  const versionHistory = useVersionHistory(editor);
+
+  const handleGenerate = useCallback((input: PromptInput) => {
+    setLastKeywords(input.keywords);
+    versionHistory.clearHistory();
+    generation.generate(input, contentType);
+  }, [contentType, generation.generate, versionHistory.clearHistory]);
+
+  const handleImageSelect = useCallback((image: ImageResult) => {
+    if (!editor) return;
+    versionHistory.createSnapshot("Before image insert");
+    editor.chain().focus().setImage({
+      src: image.regular,
+      alt: image.alt,
+    }).run();
+    setShowImagePicker(false);
+  }, [editor, versionHistory.createSnapshot]);
+
+  const phase = generation.state.phase;
+  const isGenerating = phase === "planning" || phase === "writing";
+  const showOutline = phase === "outlining";
+  const hasPreview = phase === "writing" || phase === "transitioning";
+  const showPreview = phase === "writing" || phase === "transitioning";
+  const showEditor = phase === "idle" || phase === "complete" || phase === "error";
+
+  useEffect(() => {
+    if (phase === "complete" && editor) {
+      const html = editor.getHTML();
+      if (html && html !== "<p></p>") {
+        versionHistory.createSnapshot("Generated content");
+      }
+    }
+  }, [phase, editor, versionHistory]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && isGenerating) {
+        generation.stop();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        versionHistory.createSnapshot("Manual save");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+
+    const openImageHandler = () => setShowImagePicker(true);
+    document.addEventListener("open-image-picker", openImageHandler);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("open-image-picker", openImageHandler);
+    };
+  }, [isGenerating, generation, versionHistory.createSnapshot]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex flex-col h-screen">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold tracking-tight">MAGI</h1>
+          <span className="text-sm text-muted-foreground">Content Editor</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="flex items-center gap-2">
+          <WordCount editor={editor} />
+          <button
+            type="button"
+            onClick={() => versionHistory.setIsOpen(!versionHistory.isOpen)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+              versionHistory.isOpen
+                ? "border-accent bg-accent/5 text-accent"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40"
+            }`}
+            title="Version History"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <History size={13} />
+            History
+            {versionHistory.snapshots.length > 0 && (
+              <span className="px-1 py-0.5 text-[10px] rounded bg-muted leading-none">
+                {versionHistory.snapshots.length}
+              </span>
+            )}
+          </button>
+          <ExportMenu editor={editor} />
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="w-[320px] border-r border-border flex flex-col shrink-0">
+          <PromptPanel
+            contentType={contentType}
+            onContentTypeChange={setContentType}
+            onGenerate={handleGenerate}
+            isGenerating={isGenerating}
+          />
+        </aside>
+
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {isGenerating && (
+            <GenerationStatusBar
+              state={generation.state}
+              onStop={generation.stop}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          )}
+          {phase === "error" && generation.state.error && (
+            <ErrorBanner
+              message={generation.state.error}
+              onDismiss={generation.clearError}
+            />
+          )}
+          <div className="flex-1 overflow-y-auto relative">
+            <div className="max-w-4xl mx-auto py-10 px-8">
+              {showOutline && generation.state.plan && (
+                <OutlineEditor
+                  plan={generation.state.plan}
+                  onConfirm={(editedPlan) => generation.confirmOutline(editedPlan)}
+                  onCancel={() => generation.clearError()}
+                />
+              )}
+
+              {phase === "planning" && (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="px-6 py-4">
+                    <StreamingPreview
+                      plan={null}
+                      phase="planning"
+                      sections={{}}
+                      registerContainer={generation.registerContainer}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {hasPreview && (
+                <div
+                  className="transition-opacity duration-300 ease-out"
+                  style={{
+                    opacity: showPreview ? 1 : 0,
+                    pointerEvents: showPreview ? "auto" : "none",
+                    position: showEditor && !showPreview ? "absolute" : "relative",
+                    visibility: showEditor && !showPreview ? "hidden" : "visible",
+                  }}
+                >
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <div className="px-6 py-4">
+                      <StreamingPreview
+                        plan={generation.state.plan}
+                        phase={generation.state.phase}
+                        sections={generation.state.sections}
+                        registerContainer={generation.registerContainer}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div
+                className="transition-opacity duration-300 ease-in"
+                style={{
+                  opacity: showEditor ? 1 : 0,
+                  pointerEvents: showEditor ? "auto" : "none",
+                  position: showPreview && hasPreview ? "absolute" : "relative",
+                  visibility: showPreview && hasPreview ? "hidden" : "visible",
+                }}
+              >
+                <ContentEditor
+                  editor={editor}
+                  onRegenerateSection={(sectionId) => {
+                    versionHistory.createSnapshot("Before regenerate");
+                    generation.regenerateSection(sectionId);
+                  }}
+                  isRegenerating={generation.regeneratingSection}
+                  onOpenImagePicker={() => setShowImagePicker(true)}
+                  onContinueWriting={continueWriting}
+                  isContinueWriting={isWriting}
+                  onBeforeAction={(label) => versionHistory.createSnapshot(`Before ${label}`)}
+                />
+              </div>
+            </div>
+          </div>
+          {showEditor && <ContentScorePanel editor={editor} keywords={lastKeywords} />}
         </div>
-      </main>
-    </div>
+
+        {versionHistory.isOpen && (
+          <aside className="w-[300px] shrink-0">
+            <VersionHistoryPanel
+              snapshots={versionHistory.snapshots}
+              previewingId={versionHistory.previewingId}
+              onPreview={versionHistory.previewSnapshot}
+              onExitPreview={versionHistory.exitPreview}
+              onRestore={versionHistory.restoreSnapshot}
+              onDelete={versionHistory.deleteSnapshot}
+              onSaveManual={() => versionHistory.createSnapshot("Manual save")}
+              onClear={versionHistory.clearHistory}
+              onClose={() => versionHistory.setIsOpen(false)}
+            />
+          </aside>
+        )}
+      </div>
+
+      <ImagePicker
+        isOpen={showImagePicker}
+        onClose={() => setShowImagePicker(false)}
+        onSelect={handleImageSelect}
+      />
+    </main>
   );
 }
