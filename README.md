@@ -14,7 +14,7 @@ An AI-powered content editor built on TipTap (ProseMirror) with a multi-pass gen
 ### Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Paroksh1/magi-content-ai.git
 cd magi-content-editor
 npm install
 ```
